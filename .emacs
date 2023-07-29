@@ -17,6 +17,7 @@
 (use-package cider)
 (use-package swiper)
 (use-package clojure-mode)
+(use-package neotree)
 
 (menu-bar-mode -1)
 
@@ -253,3 +254,4 @@
   :hook (org-mode . efs/org-mode-visual-fill))
 
 (global-set-key (kbd "C-x b") 'counsel-switch-buffer)
+(electric-pair-mode 1)
