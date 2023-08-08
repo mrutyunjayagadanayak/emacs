@@ -18,9 +18,10 @@
 (use-package swiper)
 (use-package clojure-mode)
 (use-package neotree)
-
+(use-package elfeed)
 (menu-bar-mode -1)
 
+(global-set-key (kbd "C-x w") 'elfeed)
 ;; Theme below
 
 (custom-set-variables
@@ -255,3 +256,11 @@
 
 (global-set-key (kbd "C-x b") 'counsel-switch-buffer)
 (electric-pair-mode 1)
+(setq elfeed-feeds
+      '("http://slackbuilds.org/rss/ChangeLog.rss"
+	"http://nullprogram.com/feed/"
+	"https://planet.emacslife.com/atom.xml"
+	"https://xkcd.com/rss.xml"))
+
+(add-hook 'org-mode-hook
+          (lambda () (face-remap-add-relative 'default :family "Monospace")))
