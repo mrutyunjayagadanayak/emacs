@@ -20,12 +20,34 @@
 (use-package neotree)
 (use-package elfeed)
 (use-package slime)
-(use-package company)
+
 (menu-bar-mode -1)
 
 (global-set-key (kbd "C-x w") 'elfeed)
-;;(setq inferior-lisp-program "sbcl")
-;;Setup slime 
+(setq inferior-lisp-program "sbcl")
+;; setup company mode
+(use-package company
+  :ensure t
+  :hook ((slime-repl-mode common-lisp-mode emacs-lisp-mode) . company-mode)
+  :bind (:map company-active-map
+              ("C-p" . (lambda ()
+                          (interactive)
+                          (company-select-previous)))
+              ("C-n" . (lambda ()
+			  (interactive)
+                          (company-select-next)))
+              ("SPC" . (lambda ()
+                         (interactive)
+                         (company-abort)
+                         (insert " ")))
+              ("<return>" . nil)
+              ("RET" . nil)
+              ("<tab>" . company-complete))
+  :config
+  (setq company-minimum-prefix-length 2
+        company-idle-delay 0.1
+        company-flx-limit 20))
+;; Setup slime
 (eval-after-load "slime"
   '(progn
      (slime-setup '(
@@ -43,12 +65,29 @@
                     slime-sbcl-exts
                     slime-scratch
                     slime-xref-browser
+		    slime-company
 		    ))
      (slime-autodoc-mode)
      (setq slime-complete-symbol*-fancy t)
      (setq slime-complete-symbol-function
 	   'slime-fuzzy-complete-symbol)))
 (require 'slime)
+
+(use-package slime-company
+  :after (slime company)
+  :ensure t
+  :config
+  (setq slime-company-completion 'fuzzy)
+  ;; We redefine this function to call SLIME-COMPANY-DOC-MODE in the buffer
+  (defun slime-show-description (string package)
+    (let ((bufname (slime-buffer-name :description)))
+      (slime-with-popup-buffer (bufname :package package
+					:connection t
+					:select slime-description-autofocus)
+	(when (string= bufname "*slime-description*")
+	  (with-current-buffer bufname (slime-company-doc-mode)))
+	(princ string)
+	(goto-char (point-min))))))
 ;; Theme below
 
 (custom-set-variables
@@ -291,3 +330,11 @@
 
 (add-hook 'org-mode-hook
           (lambda () (face-remap-add-relative 'default :family "Monospace")))
+
+(use-package nerd-icons)
+;; run nerd-install icons for icons to work
+(setq doom-modeline-icon t)
+(setq doom-modeline-major-mode-icon t)
+(setq doom-modeline-buffer-state-icon t)
+(show-paren-mode 1)
+
