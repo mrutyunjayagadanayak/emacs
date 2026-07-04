@@ -28,7 +28,11 @@
 ;; setup company mode
 (use-package company
   :ensure t
-  :hook ((slime-repl-mode common-lisp-mode emacs-lisp-mode) . company-mode)
+  :hook ((slime-repl-mode 
+          common-lisp-mode 
+          emacs-lisp-mode
+          clojure-mode
+          cider-repl-mode) . company-mode)
   :bind (:map company-active-map
               ("C-p" . (lambda ()
                           (interactive)
@@ -338,3 +342,5 @@
 ;; (set-frame-parameter (selected-frame) 'alpha '(85 85))
 ;; (add-to-list 'default-frame-alist '(alpha 85 85))
 (setq warning-minimum-level :error)
+
+(add-hook 'clojure-mode-hook #'cider-mode)
