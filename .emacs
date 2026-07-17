@@ -344,7 +344,8 @@
       '("http://slackbuilds.org/rss/ChangeLog.rss"
 	"http://nullprogram.com/feed/"
 	"https://planet.emacslife.com/atom.xml"
-	"https://xkcd.com/rss.xml"))
+	"https://xkcd.com/rss.xml"
+	"https://distrowatch.com/news/dw.xml"))
 
 (add-hook 'org-mode-hook
           (lambda () (face-remap-add-relative 'default :family "Monospace")))
@@ -375,7 +376,7 @@
 
 (add-hook 'clojure-mode-hook #'cider-mode)
 
-==========================================
+;;==========================================
 ;; PYTHON DEVELOPMENT WORKSPACE
 ;; ==========================================
 
@@ -388,16 +389,13 @@
 ;; Start Eglot for Python files and use pylsp for diagnostics
 (use-package eglot
   :ensure t
+  ;; Hooks run before the package loads to trigger auto-start
+  :hook ((python-mode . eglot-ensure)
+         (eglot-managed-mode . (lambda ()
+                                 (flymake-mode 1)
+                                 (add-to-list 'company-backends 'company-capf))))
   :config
-  (add-to-list 'eglot-server-programs '(python-mode . ("/usr/bin/pylsp")))
-  (add-hook 'python-mode-hook #'eglot-ensure)
-  (add-hook 'eglot-managed-mode-hook
-            (lambda ()
-              ;; Enable flymake for diagnostics
-              (flymake-mode 1)
-              ;; Connect company to eglot
-              (add-to-list 'company-backends 'company-capf)))
-  ;; Show diagnostics inline
+  (add-to-list 'eglot-server-programs '(python-mode . ("pylsp")))
   (setq eglot-report-progress nil))
 
 ;; Python editing defaults and keybindings
