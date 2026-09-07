@@ -19,7 +19,17 @@
 (use-package clojure-mode)
 (use-package neotree)
 (use-package elfeed)
-(use-package slime)
+(use-package slime
+  :ensure t
+  :config
+  (setq inferior-lisp-program "sbcl")
+  (slime-setup '(slime-fancy slime-quicklisp slime-asdf)))
+(use-package slime-company
+  :ensure t
+  :after (slime company))
+
+
+
 
 (menu-bar-mode -1)
 
@@ -28,9 +38,7 @@
 ;; setup company mode
 (use-package company
   :ensure t
-  :hook ((slime-repl-mode
-          common-lisp-mode
-          emacs-lisp-mode
+  :hook ((emacs-lisp-mode
           clojure-mode
 	  python-mode 
           cider-repl-mode) . company-mode)
@@ -73,26 +81,24 @@
 		    slime-company
 		    ))
      (slime-autodoc-mode)
-     (setq slime-complete-symbol*-fancy t)
-     (setq slime-complete-symbol-function
-	   'slime-fuzzy-complete-symbol)))
-(require 'slime)
-
-(use-package slime-company
-  :after (slime company)
-  :ensure t
-  :config
-  (setq slime-company-completion 'fuzzy)
-  ;; We redefine this function to call SLIME-COMPANY-DOC-MODE in the buffer
-  (defun slime-show-description (string package)
-    (let ((bufname (slime-buffer-name :description)))
-      (slime-with-popup-buffer (bufname :package package
-					:connection t
-					:select slime-description-autofocus)
-	(when (string= bufname "*slime-description*")
-	  (with-current-buffer bufname (slime-company-doc-mode)))
- 	(princ string)
-	(goto-char (point-min))))))
+     ;; Improve REPL ergonomics
+     (setq slime-repl-history-file (expand-file-name ".slime-repl-history" (getenv "HOME"))
+           slime-repl-history-size 10000
+           slime-repl-use-syntax-highlighting t
+           slime-complete-symbol*-fancy t
+           slime-complete-symbol-function 'slime-fuzzy-complete-symbol)
+     ;; Better debugger output for Common Lisp problems
+     (setq sldb-print-readably t)
+     ;; Useful default indentation hints for Lisp macros you define
+     (defun my-common-lisp-indent-hook ()
+       (dolist (spec '((with-gensyms . 1)
+                       (when-let . 1)
+                       (if-let . 1)
+                       (handler-case . 1)))
+         (put (car spec) 'common-lisp-indent-function (cdr spec))))
+     (add-hook 'slime-repl-mode-hook #'paredit-mode)
+     (add-hook 'lisp-mode-hook #'my-common-lisp-indent-hook)
+     (add-hook 'common-lisp-mode-hook #'my-common-lisp-indent-hook)))
 ;; Theme below
 
 (custom-set-variables
@@ -112,7 +118,7 @@
  '(jdee-db-spec-breakpoint-face-colors (cons "#171F24" "#777778"))
  '(objed-cursor-color "#D16969")
  '(package-selected-packages
-   '(pyvenv auto-package-update all-the-icons visual-fill-column org-bullets magit counsel-projectile general treemacs-all-the-icons ansible terraform-mode helpful ivy-rich which-key rainbow-delimiters doom-themes doom doom-modeline counsel swiper ivy use-package org paredit projectile clojure-mode-extra-font-locking cider))
+   '(slime slime-theme pyvenv auto-package-update all-the-icons visual-fill-column org-bullets magit counsel-projectile general treemacs-all-the-icons ansible terraform-mode helpful ivy-rich which-key rainbow-delimiters doom-themes doom doom-modeline counsel swiper ivy use-package org paredit projectile clojure-mode-extra-font-locking cider))
  '(pdf-view-midnight-colors (cons "#d4d4d4" "#1e1e1e"))
  '(rustic-ansi-faces
    ["#1e1e1e" "#D16969" "#579C4C" "#D7BA7D" "#339CDB" "#C586C0" "#85DDFF" "#d4d4d4"])
@@ -368,7 +374,6 @@
 (show-paren-mode 1)
 (require 'auto-package-update)
 (auto-package-update-maybe)
-(load (expand-file-name "~/quicklisp/slime-helper.el"))
 
 ;; (set-frame-parameter (selected-frame) 'alpha '(85 85))
 ;; (add-to-list 'default-frame-alist '(alpha 85 85))
@@ -384,7 +389,11 @@
 (use-package pyvenv
   :ensure t
   :config
-  (pyvenv-mode 1))
+  (pyvenv-mode 1)
+  :hook (pyvenv-post-activate . (lambda ()
+				  (when (fboundp 'eglot-reconnect)
+				    (with-current-buffer (current-buffer)
+				      (ignore-errors (eglot-reconnect)))))))
 
 ;; Start Eglot for Python files and use pylsp for diagnostics
 (use-package eglot
