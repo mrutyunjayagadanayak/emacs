@@ -13,16 +13,15 @@
 (require 'use-package)
 (setq use-package-always-ensure t)
 
+;; doom-themes loads eagerly: the theme is applied via `custom-enabled-themes' below.
 (use-package doom-themes)
-(use-package cider)
-(use-package swiper)
-(use-package clojure-mode)
-(use-package neotree)
-(use-package elfeed)
+(use-package cider :defer t)
+(use-package swiper :defer t)
+(use-package clojure-mode :defer t)
+(use-package neotree :defer t :commands (neotree neotree-toggle))
+(use-package elfeed :defer t :bind ("C-x w" . elfeed))
 
 (menu-bar-mode -1)
-
-(global-set-key (kbd "C-x w") 'elfeed)
 
 ;; setup company mode
 (use-package company
@@ -50,8 +49,7 @@
               ("<tab>" . company-complete))
   :config
   (setq company-minimum-prefix-length 2
-        company-idle-delay 0.1
-        company-flx-limit 20))
+        company-idle-delay 0.1))
 
 ;;==========================================
 ;; COMMON LISP / SLIME
@@ -251,7 +249,7 @@
 (use-package counsel
   :demand t
   :bind (("M-x" . counsel-M-x)
-	 ("C-x b" . counsel-ibuffer)
+	 ("C-x b" . counsel-switch-buffer)
 	 ("C-x C-f" . counsel-find-file)
 	 :map minibuffer-local-map
 	 ("C-r" . 'counsel-minibuffer-history))
@@ -352,7 +350,14 @@
   :hook (org-mode . efs/org-mode-visual-fill))
 
 (global-set-key (kbd "C-x b") 'counsel-switch-buffer)
-(electric-pair-mode 1)
+
+;; Paredit already balances delimiters, so keep electric-pair out of Lisp buffers.
+(defun my/maybe-electric-pair ()
+  (unless (derived-mode-p 'lisp-mode 'lisp-data-mode 'emacs-lisp-mode
+                          'clojure-mode 'scheme-mode)
+    (electric-pair-local-mode 1)))
+(add-hook 'prog-mode-hook #'my/maybe-electric-pair)
+
 (setq elfeed-feeds
       '("http://slackbuilds.org/rss/ChangeLog.rss"
 	"http://nullprogram.com/feed/"
@@ -367,17 +372,11 @@
 (use-package nerd-icons
   :ensure t
   :config
-  (setq nerd-icons-font-family "Nerd Font")
   ;; Auto-install nerd-fonts if they're missing
-  (unless (member "FiraCode Nerd Font" (font-family-list))
-    (message "Nerd fonts not found - please run: M-x nerd-icons-install-fonts")))
+  (unless (member nerd-icons-font-family (font-family-list))
+    (message "Nerd icons font (%s) not found - please run: M-x nerd-icons-install-fonts"
+             nerd-icons-font-family)))
 
-;; Configure doom-modeline to use nerd-icons
-(setq doom-modeline-icon t
-      doom-modeline-major-mode-icon t
-      doom-modeline-major-mode-color-icon t
-      doom-modeline-buffer-state-icon t
-      doom-modeline-buffer-modification-icon t)
 (show-paren-mode 1)
 (use-package auto-package-update
   :ensure t
