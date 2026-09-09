@@ -32,7 +32,11 @@
           slime-repl-mode
           clojure-mode
 	  python-mode 
-          cider-repl-mode) . company-mode)
+          cider-repl-mode
+          typescript-ts-mode
+          tsx-ts-mode
+          js-ts-mode
+          js-mode) . company-mode)
   :bind (:map company-active-map
               ("C-p" . (lambda ()
                           (interactive)
@@ -440,3 +444,71 @@
 ;; Tweak Eldoc behavior for cleaner mini-buffer echoing
 (setq eldoc-idle-delay 0.1          ; Show errors almost instantly (default is 0.5)
       eldoc-echo-area-use-multiline-p t) ; Allow multi-line errors to show fully
+
+;;==========================================
+;; TYPESCRIPT / JAVASCRIPT WORKSPACE
+;;==========================================
+;; Requires the language server on PATH:
+;;   npm install -g typescript typescript-language-server
+;; Then run M-x my/treesit-install-grammars once (needs git + a C compiler).
+
+(require 'treesit)
+
+(setq treesit-language-source-alist
+      '((typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src")
+        (tsx        "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")
+        (javascript "https://github.com/tree-sitter/tree-sitter-javascript" "master" "src")
+        (json       "https://github.com/tree-sitter/tree-sitter-json"       "master" "src")))
+
+(defun my/treesit-install-grammars ()
+  "Compile and install any tree-sitter grammars this config needs."
+  (interactive)
+  (dolist (lang (mapcar #'car treesit-language-source-alist))
+    (if (treesit-language-available-p lang)
+        (message "tree-sitter grammar already present: %s" lang)
+      (message "Installing tree-sitter grammar: %s" lang)
+      (treesit-install-language-grammar lang))))
+
+;; Only route files to tree-sitter modes whose grammar is actually built,
+;; otherwise the buffer opens inert. Plain js-mode still gets LSP below.
+(when (treesit-language-available-p 'typescript)
+  (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-ts-mode)))
+(when (treesit-language-available-p 'tsx)
+  (add-to-list 'auto-mode-alist '("\\.tsx\\'" . tsx-ts-mode)))
+(when (treesit-language-available-p 'javascript)
+  (add-to-list 'major-mode-remap-alist '(js-mode . js-ts-mode))
+  (add-to-list 'major-mode-remap-alist '(javascript-mode . js-ts-mode)))
+(when (treesit-language-available-p 'json)
+  (add-to-list 'major-mode-remap-alist '(js-json-mode . json-ts-mode)))
+
+;; Mirrors eglot's built-in entry, including the :language-id values (tsx must
+;; report "typescriptreact"), but adds the preferences that make tsserver offer
+;; not-yet-imported symbols as completions. Eglot then applies the LSP
+;; additionalTextEdits, which is what writes the import line.
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               '(((js-mode         :language-id "javascript")
+                  (js-ts-mode      :language-id "javascript")
+                  (tsx-ts-mode     :language-id "typescriptreact")
+                  (typescript-ts-mode :language-id "typescript")
+                  (typescript-mode :language-id "typescript"))
+                 . ("typescript-language-server" "--stdio"
+                    :initializationOptions
+                    (:preferences
+                     (:includeCompletionsForModuleExports t
+                      :includeCompletionsForImportStatements t))))))
+
+(dolist (hook '(typescript-ts-mode-hook
+                tsx-ts-mode-hook
+                js-ts-mode-hook
+                js-mode-hook))
+  (add-hook hook #'eglot-ensure))
+
+;; tsserver resolves node_modules and tsconfig paths relative to the project
+;; root, so teach project.el to recognise npm projects that lack a VC root.
+(with-eval-after-load 'project
+  (dolist (marker '("package.json" "tsconfig.json" "jsconfig.json"))
+    (add-to-list 'project-vc-extra-root-markers marker)))
+
+(setq typescript-ts-mode-indent-offset 2
+      js-indent-level 2)
