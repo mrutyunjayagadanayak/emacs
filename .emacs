@@ -19,26 +19,18 @@
 (use-package clojure-mode)
 (use-package neotree)
 (use-package elfeed)
-(use-package slime
-  :ensure t
-  :config
-  (setq inferior-lisp-program "sbcl")
-  (slime-setup '(slime-fancy slime-quicklisp slime-asdf)))
-(use-package slime-company
-  :ensure t
-  :after (slime company))
-
-
-
 
 (menu-bar-mode -1)
 
 (global-set-key (kbd "C-x w") 'elfeed)
-(setq inferior-lisp-program "sbcl")
+
 ;; setup company mode
 (use-package company
   :ensure t
+  :demand t
   :hook ((emacs-lisp-mode
+          lisp-mode
+          slime-repl-mode
           clojure-mode
 	  python-mode 
           cider-repl-mode) . company-mode)
@@ -60,45 +52,53 @@
   (setq company-minimum-prefix-length 2
         company-idle-delay 0.1
         company-flx-limit 20))
-;; Setup slime
-(eval-after-load "slime"
-  '(progn
-     (slime-setup '(
-		    slime-asdf
-                    slime-autodoc
-                    slime-editing-commands
-                    slime-fancy-inspector
-                    slime-fontifying-fu
-                    slime-fuzzy
-                    slime-indentation
-                    slime-mdot-fu
-                    slime-package-fu
-                    slime-references
-                    slime-repl
-                    slime-sbcl-exts
-                    slime-scratch
-                    slime-xref-browser
-		    slime-company
-		    ))
-     (slime-autodoc-mode)
-     ;; Improve REPL ergonomics
-     (setq slime-repl-history-file (expand-file-name ".slime-repl-history" (getenv "HOME"))
-           slime-repl-history-size 10000
-           slime-repl-use-syntax-highlighting t
-           slime-complete-symbol*-fancy t
-           slime-complete-symbol-function 'slime-fuzzy-complete-symbol)
-     ;; Better debugger output for Common Lisp problems
-     (setq sldb-print-readably t)
-     ;; Useful default indentation hints for Lisp macros you define
-     (defun my-common-lisp-indent-hook ()
-       (dolist (spec '((with-gensyms . 1)
-                       (when-let . 1)
-                       (if-let . 1)
-                       (handler-case . 1)))
-         (put (car spec) 'common-lisp-indent-function (cdr spec))))
-     (add-hook 'slime-repl-mode-hook #'paredit-mode)
-     (add-hook 'lisp-mode-hook #'my-common-lisp-indent-hook)
-     (add-hook 'common-lisp-mode-hook #'my-common-lisp-indent-hook)))
+
+;;==========================================
+;; COMMON LISP / SLIME
+;;==========================================
+
+;; `put' sets a global symbol property, so this only needs to run once.
+(defun my/common-lisp-indent-setup ()
+  "Indentation hints for macros `cl-indent' does not already know about."
+  (dolist (spec '((with-gensyms . 1)
+                  (when-let . 1)
+                  (if-let . 1)))
+    (put (car spec) 'common-lisp-indent-function (cdr spec))))
+
+(defun my/slime-repl-setup ()
+  "Enable paredit in the SLIME REPL without letting it steal RET."
+  (enable-paredit-mode)
+  (define-key slime-repl-mode-map (kbd "RET") #'slime-repl-return)
+  (define-key slime-repl-mode-map (kbd "<return>") #'slime-repl-return))
+
+(use-package slime-company
+  :ensure t
+  :demand t
+  :after company
+  :init
+  (setq slime-company-completion 'fuzzy))
+
+;; Loaded after slime-company so `slime-setup' can require the contrib.
+(use-package slime
+  :ensure t
+  :demand t
+  :after slime-company
+  :config
+  (setq inferior-lisp-program "sbcl"
+        ;; REPL ergonomics
+        slime-repl-history-file (expand-file-name "~/.slime-repl-history")
+        slime-repl-history-size 10000
+        slime-complete-symbol*-fancy t)
+  ;; Single `slime-setup' call: it REPLACES `slime-contribs', it does not append.
+  (slime-setup '(slime-fancy
+                 slime-quicklisp
+                 slime-asdf
+                 slime-sbcl-exts
+                 slime-xref-browser
+                 slime-company))
+  (my/common-lisp-indent-setup)
+  (add-hook 'slime-repl-mode-hook #'my/slime-repl-setup))
+
 ;; Theme below
 
 (custom-set-variables
@@ -118,7 +118,7 @@
  '(jdee-db-spec-breakpoint-face-colors (cons "#171F24" "#777778"))
  '(objed-cursor-color "#D16969")
  '(package-selected-packages
-   '(slime slime-theme pyvenv auto-package-update all-the-icons visual-fill-column org-bullets magit counsel-projectile general treemacs-all-the-icons ansible terraform-mode helpful ivy-rich which-key rainbow-delimiters doom-themes doom doom-modeline counsel swiper ivy use-package org paredit projectile clojure-mode-extra-font-locking cider))
+   '(slime slime-company pyvenv auto-package-update all-the-icons visual-fill-column org-bullets magit counsel-projectile general treemacs-all-the-icons ansible terraform-mode helpful ivy-rich which-key rainbow-delimiters doom-themes doom doom-modeline counsel swiper ivy use-package org paredit projectile clojure-mode-extra-font-locking cider))
  '(pdf-view-midnight-colors (cons "#d4d4d4" "#1e1e1e"))
  '(rustic-ansi-faces
    ["#1e1e1e" "#D16969" "#579C4C" "#D7BA7D" "#339CDB" "#C586C0" "#85DDFF" "#d4d4d4"])
@@ -386,14 +386,21 @@
 ;; ==========================================
 
 ;; Enable virtualenv support for Python projects
+(defun my/eglot-reconnect-python-buffers ()
+  "Restart Eglot in every managed Python buffer after a virtualenv switch."
+  (when (fboundp 'eglot-current-server)
+    (dolist (buf (buffer-list))
+      (with-current-buffer buf
+        (when (and (derived-mode-p 'python-mode)
+                   (eglot-current-server))
+          (eglot-reconnect (eglot-current-server) t))))))
+
 (use-package pyvenv
   :ensure t
   :config
   (pyvenv-mode 1)
-  :hook (pyvenv-post-activate . (lambda ()
-				  (when (fboundp 'eglot-reconnect)
-				    (with-current-buffer (current-buffer)
-				      (ignore-errors (eglot-reconnect)))))))
+  ;; pyvenv's hook variable is plural, so use-package's `:hook' cannot target it.
+  (add-hook 'pyvenv-post-activate-hooks #'my/eglot-reconnect-python-buffers))
 
 ;; Start Eglot for Python files and use pylsp for diagnostics
 (use-package eglot
