@@ -242,10 +242,14 @@
   (setq which-key-idle-delay 1))
 
 (use-package ivy-rich
-  :init
+  ;; Must load after counsel, whose commands it formats.
+  :after counsel
+  :demand t
+  :config
   (ivy-rich-mode 1))
 ;; Setup counsel
 (use-package counsel
+  :demand t
   :bind (("M-x" . counsel-M-x)
 	 ("C-x b" . counsel-ibuffer)
 	 ("C-x C-f" . counsel-find-file)
@@ -303,7 +307,9 @@
                 (org-level-6 . 1.1)
                 (org-level-7 . 1.1)
                 (org-level-8 . 1.1)))
-  (set-face-attribute (car face) nil :font "Cantarell" :weight 'regular :height (cdr face)))
+  (set-face-attribute (car face) nil :weight 'regular :height (cdr face))
+  (when (member "Cantarell" (font-family-list))
+    (set-face-attribute (car face) nil :font "Cantarell")))
 
 ;; Ensure that anything that should be fixed-pitch in Org files appears that way
 (set-face-attribute 'org-block nil :foreground nil :inherit 'fixed-pitch)
@@ -317,6 +323,7 @@
 (use-package org
   :hook (org-mode . efs/org-mode-setup)
   :config
+  (efs/org-font-setup)
   (setq org-ellipsis " ...."
 	org-hide-emphasis-markers t)
   (setq org-agenda-start-with-log-mode t)
@@ -372,8 +379,10 @@
       doom-modeline-buffer-state-icon t
       doom-modeline-buffer-modification-icon t)
 (show-paren-mode 1)
-(require 'auto-package-update)
-(auto-package-update-maybe)
+(use-package auto-package-update
+  :ensure t
+  :config
+  (auto-package-update-maybe))
 
 ;; (set-frame-parameter (selected-frame) 'alpha '(85 85))
 ;; (add-to-list 'default-frame-alist '(alpha 85 85))
